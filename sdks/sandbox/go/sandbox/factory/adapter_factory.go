@@ -1,6 +1,9 @@
 package factory
 
-import "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/services"
+import (
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/adapters"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/services"
+)
 
 type LifecycleStack struct {
 	Sandboxes services.Sandboxes
@@ -17,7 +20,9 @@ type EgressStack struct {
 	Egress services.Egress
 }
 
-type CreateLifecycleStackOptions struct{}
+type CreateLifecycleStackOptions struct {
+	LifecycleClient adapters.LifecycleClient
+}
 
 type CreateExecdStackOptions struct{}
 

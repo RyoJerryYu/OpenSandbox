@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -52,6 +53,16 @@ func TestManagerCloseReleasesLocalResourcesOnly(t *testing.T) {
 	}
 }
 
+func TestNewSandboxManagerFailsWhenLifecycleStackCannotBeBuilt(t *testing.T) {
+	expected := errors.New("missing lifecycle client")
+	_, err := sandbox.NewSandboxManager(sandbox.SandboxManagerOptions{
+		AdapterFactory: &failingFactory{err: expected},
+	})
+	if !errors.Is(err, expected) {
+		t.Fatalf("expected lifecycle factory error, got %v", err)
+	}
+}
+
 type fakeFactory struct {
 	lifecycle *factory.LifecycleStack
 }
@@ -66,6 +77,22 @@ func (f *fakeFactory) CreateExecdStack(opts factory.CreateExecdStackOptions) (*f
 
 func (f *fakeFactory) CreateEgressStack(opts factory.CreateEgressStackOptions) (*factory.EgressStack, error) {
 	return &factory.EgressStack{}, nil
+}
+
+type failingFactory struct {
+	err error
+}
+
+func (f *failingFactory) CreateLifecycleStack(opts factory.CreateLifecycleStackOptions) (*factory.LifecycleStack, error) {
+	return nil, f.err
+}
+
+func (f *failingFactory) CreateExecdStack(opts factory.CreateExecdStackOptions) (*factory.ExecdStack, error) {
+	return nil, f.err
+}
+
+func (f *failingFactory) CreateEgressStack(opts factory.CreateEgressStackOptions) (*factory.EgressStack, error) {
+	return nil, f.err
 }
 
 type fakeSandboxes struct {
