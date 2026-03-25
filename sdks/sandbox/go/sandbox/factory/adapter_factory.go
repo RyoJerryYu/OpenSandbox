@@ -2,6 +2,7 @@ package factory
 
 import (
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/adapters"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/services"
 )
 
@@ -21,7 +22,9 @@ type EgressStack struct {
 }
 
 type CreateLifecycleStackOptions struct {
-	LifecycleClient adapters.LifecycleClient
+	ConnectionConfig *config.ConnectionConfig
+	LifecycleBaseURL string
+	LifecycleClient  adapters.LifecycleClient
 }
 
 type CreateExecdStackOptions struct{}

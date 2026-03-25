@@ -10,6 +10,7 @@ import (
 type ConnectionConfig struct {
 	Domain         string
 	Protocol       string
+	APIKey         string
 	Headers        map[string]string
 	RequestTimeout time.Duration
 	UseServerProxy bool

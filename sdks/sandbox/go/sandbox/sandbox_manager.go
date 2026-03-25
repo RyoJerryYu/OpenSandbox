@@ -33,7 +33,10 @@ func NewSandboxManager(opts SandboxManagerOptions) (*SandboxManager, error) {
 		adapterFactory = &factory.DefaultAdapterFactory{}
 	}
 
-	stack, err := adapterFactory.CreateLifecycleStack(factory.CreateLifecycleStackOptions{})
+	stack, err := adapterFactory.CreateLifecycleStack(factory.CreateLifecycleStackOptions{
+		ConnectionConfig: connectionConfig,
+		LifecycleBaseURL: connectionConfig.BaseURL(),
+	})
 	if err != nil {
 		_ = connectionConfig.Close()
 		return nil, err

@@ -1,12 +1,16 @@
 package unit
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/factory"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/models"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/services"
@@ -60,6 +64,44 @@ func TestNewSandboxManagerFailsWhenLifecycleStackCannotBeBuilt(t *testing.T) {
 	})
 	if !errors.Is(err, expected) {
 		t.Fatalf("expected lifecycle factory error, got %v", err)
+	}
+}
+
+func TestNewSandboxManagerUsesDefaultFactoryWithGeneratedLifecycleClient(t *testing.T) {
+	var gotAPIKey string
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			gotAPIKey = r.Header.Get("OPEN-SANDBOX-API-KEY")
+			body := []byte(`{"items":[],"pagination":{"page":1,"pageSize":10,"totalItems":0,"totalPages":0,"hasNextPage":false}}`)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"application/json"},
+				},
+				Body: io.NopCloser(bytes.NewReader(body)),
+			}, nil
+		}),
+		Timeout: 5 * time.Second,
+	}
+
+	manager, err := sandbox.NewSandboxManager(sandbox.SandboxManagerOptions{
+		ConnectionConfig: &config.ConnectionConfig{
+			Domain:     "example.test",
+			Protocol:   "http",
+			APIKey:     "api-key-1",
+			HTTPClient: client,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	if _, err := manager.ListSandboxInfos(context.Background(), models.SandboxFilter{}); err != nil {
+		t.Fatalf("list sandbox infos: %v", err)
+	}
+
+	if gotAPIKey != "api-key-1" {
+		t.Fatalf("unexpected api key header: %q", gotAPIKey)
 	}
 }
 
