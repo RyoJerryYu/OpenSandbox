@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -94,6 +95,45 @@ func TestDefaultAdapterFactoryCreateExecdStackBuildsHealthAndMetricsAdapters(t *
 		if request.Method != http.MethodGet {
 			t.Fatalf("unexpected method: %s", request.Method)
 		}
+	}
+}
+
+func TestDefaultAdapterFactoryCreateEgressStackBuildsAdapter(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			body := []byte(`{"mode":"deny_all","policy":{"defaultAction":"deny","egress":[{"action":"allow","target":"pypi.org"}]}}`)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"application/json"},
+				},
+				Body: io.NopCloser(bytes.NewReader(body)),
+			}, nil
+		}),
+		Timeout: 5 * time.Second,
+	}
+
+	stack, err := (&DefaultAdapterFactory{}).CreateEgressStack(CreateEgressStackOptions{
+		ConnectionConfig: &config.ConnectionConfig{
+			Domain:     "example.test",
+			Protocol:   "http",
+			HTTPClient: client,
+		},
+		EgressBaseURL: "http://sandbox.example:18080",
+	})
+	if err != nil {
+		t.Fatalf("create egress stack: %v", err)
+	}
+	if stack.Egress == nil {
+		t.Fatal("expected egress adapter")
+	}
+
+	policy, err := stack.Egress.GetPolicy(context.Background())
+	if err != nil {
+		t.Fatalf("get policy: %v", err)
+	}
+	if policy.DefaultAction != "deny" {
+		t.Fatalf("unexpected default action: %s", policy.DefaultAction)
 	}
 }
 

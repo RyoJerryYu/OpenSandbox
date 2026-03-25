@@ -25,5 +25,13 @@ type ReadFileOptions = models.ReadFileOptions
 type RunCommandOptions = models.RunCommandOptions
 type CommandStatus = models.CommandStatus
 type CommandLogs = models.CommandLogs
+type OutputMessage = models.OutputMessage
+type ExecutionResult = models.ExecutionResult
+type ExecutionError = models.ExecutionError
+type ExecutionLogs = models.ExecutionLogs
+type ExecutionComplete = models.ExecutionComplete
+type ServerStreamEvent = models.ServerStreamEvent
+type CommandExecution = models.CommandExecution
+type CommandStream = models.CommandStream
 
 type AdapterFactory = factory.AdapterFactory

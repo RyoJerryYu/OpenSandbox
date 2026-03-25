@@ -1,11 +1,14 @@
 package adapters
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
 	execdapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/execd"
 )
 
@@ -85,6 +88,84 @@ func TestCommandsAdapterBackgroundLogCursorParsing(t *testing.T) {
 	}
 	if logs.Cursor == nil || *logs.Cursor != 17 {
 		t.Fatalf("unexpected cursor: %+v", logs.Cursor)
+	}
+}
+
+func TestCommandsAdapterRunStreamExposesOrderedEvents(t *testing.T) {
+	httpClient := &http.Client{
+		Transport: roundTripCaptureFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Header.Get("Accept") != "text/event-stream" {
+				t.Fatalf("unexpected accept header: %q", req.Header.Get("Accept"))
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"text/event-stream"},
+				},
+				Body: io.NopCloser(bytes.NewBufferString(
+					"data: {\"type\":\"init\",\"text\":\"cmd-1\",\"timestamp\":1}\n\n" +
+						"data: {\"type\":\"stdout\",\"text\":\"hello\",\"timestamp\":2}\n\n",
+				)),
+			}, nil
+		}),
+	}
+	adapter := NewStreamingCommandsAdapter(nil, "http://sandbox.example:44772", &config.ConnectionConfig{
+		SSEHTTPClient: httpClient,
+	})
+
+	stream, err := adapter.RunStream(context.Background(), "echo hello", nil)
+	if err != nil {
+		t.Fatalf("run stream: %v", err)
+	}
+
+	var eventTypes []string
+	for event := range stream.Events {
+		eventTypes = append(eventTypes, event.Type)
+	}
+	if err := <-stream.Done; err != nil {
+		t.Fatalf("stream done: %v", err)
+	}
+	if len(eventTypes) != 2 || eventTypes[0] != "init" || eventTypes[1] != "stdout" {
+		t.Fatalf("unexpected event order: %+v", eventTypes)
+	}
+}
+
+func TestCommandsAdapterRunAggregatesStdoutResultAndComplete(t *testing.T) {
+	httpClient := &http.Client{
+		Transport: roundTripCaptureFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"text/event-stream"},
+				},
+				Body: io.NopCloser(bytes.NewBufferString(
+					"data: {\"type\":\"init\",\"text\":\"cmd-1\",\"timestamp\":1}\n\n" +
+						"data: {\"type\":\"stdout\",\"text\":\"hello\",\"timestamp\":2}\n\n" +
+						"data: {\"type\":\"result\",\"results\":{\"text/plain\":\"done\"},\"timestamp\":3}\n\n" +
+						"data: {\"type\":\"execution_complete\",\"timestamp\":4,\"execution_time\":5}\n\n",
+				)),
+			}, nil
+		}),
+	}
+	adapter := NewStreamingCommandsAdapter(nil, "http://sandbox.example:44772", &config.ConnectionConfig{
+		SSEHTTPClient: httpClient,
+	})
+
+	execution, err := adapter.Run(context.Background(), "echo hello", nil)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if execution.ID != "cmd-1" {
+		t.Fatalf("unexpected execution id: %s", execution.ID)
+	}
+	if len(execution.Logs.Stdout) != 1 || execution.Logs.Stdout[0].Text != "hello" {
+		t.Fatalf("unexpected stdout logs: %+v", execution.Logs.Stdout)
+	}
+	if len(execution.Result) != 1 || execution.Result[0].Text != "done" {
+		t.Fatalf("unexpected results: %+v", execution.Result)
+	}
+	if execution.Complete == nil || execution.Complete.ExecutionTimeMs != 5 {
+		t.Fatalf("unexpected completion: %+v", execution.Complete)
 	}
 }
 

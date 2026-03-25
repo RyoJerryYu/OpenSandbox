@@ -7,6 +7,7 @@ import (
 
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/adapters"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
+	egressapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/egress"
 	execdapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/execd"
 	lifecycleapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/lifecycle"
 )
@@ -59,7 +60,7 @@ func (f *DefaultAdapterFactory) CreateExecdStack(opts CreateExecdStackOptions) (
 	}
 
 	return &ExecdStack{
-		Commands: adapters.NewCommandsAdapter(client),
+		Commands: adapters.NewStreamingCommandsAdapter(client, opts.ExecdBaseURL, opts.ConnectionConfig),
 		Files:    adapters.NewFilesystemAdapter(client, opts.ExecdBaseURL, opts.ConnectionConfig),
 		Health:   adapters.NewHealthAdapter(client),
 		Metrics:  adapters.NewMetricsAdapter(client),
@@ -67,7 +68,24 @@ func (f *DefaultAdapterFactory) CreateExecdStack(opts CreateExecdStackOptions) (
 }
 
 func (f *DefaultAdapterFactory) CreateEgressStack(opts CreateEgressStackOptions) (*EgressStack, error) {
-	return &EgressStack{}, nil
+	if opts.ConnectionConfig == nil || opts.EgressBaseURL == "" {
+		return nil, errors.New("missing egress client configuration")
+	}
+
+	client, err := egressapi.NewClientWithResponses(
+		opts.EgressBaseURL,
+		egressapi.WithHTTPClient(opts.ConnectionConfig.HTTPClient),
+		egressapi.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+			return applyConnectionHeaders(req, opts.ConnectionConfig)
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EgressStack{
+		Egress: adapters.NewEgressAdapter(client),
+	}, nil
 }
 
 func applyConnectionHeaders(req *http.Request, connectionConfig *config.ConnectionConfig) error {

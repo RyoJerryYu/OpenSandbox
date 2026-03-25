@@ -135,6 +135,7 @@
 
 - Completed: Task 1, Task 2, Task 3, Task 4, Task 9, Task 10
 - Completed with initial scope: Task 6
+- Completed: Task 11, Task 13
 - In progress: Task 5, Task 7, Task 8, Task 12, Task 14
 
 ### Progress Notes
@@ -146,9 +147,11 @@
 - Added during execution: generation-time lifecycle spec preprocessing that rewrites OpenAPI 3.1 `oneOf + null` patterns into a temporary 3.0.3-compatible spec for `oapi-codegen`.
 - Landed: `HealthAdapter`, `MetricsAdapter`, execd metrics model conversion, and default factory wiring for generated execd transport including API key and custom header propagation.
 - Landed: filesystem domain models, conversion helpers, handwritten upload/download transport, generated execd-backed metadata/search/move/replace/permissions/directory adapters, and default factory wiring for `Sandbox.Files`.
-- Landed: initial commands domain models and `CommandsAdapter` support for `Interrupt`, `GetCommandStatus`, and `GetBackgroundCommandLogs`, plus default factory wiring for `Sandbox.Commands`.
+- Landed: SSE stream primitives under `sandbox/internal/sse`, including non-2xx error normalization and context-aware stream shutdown.
+- Landed: commands domain models and `CommandsAdapter` support for `Run`, `RunStream`, `Interrupt`, `GetCommandStatus`, and `GetBackgroundCommandLogs`, plus default factory wiring for `Sandbox.Commands`.
+- Landed: egress policy conversion and adapter support for `GetPolicy` and `PatchRules`, plus default factory wiring for the sidecar egress client.
 - Verified: `env GOCACHE=/tmp/go-build-cache go test ./...` passes under `sdks/sandbox/go`.
-- Remaining high-value path: finish SSE parser and `Run`/`RunStream` command execution, then egress, readiness, and examples/E2E coverage.
+- Remaining high-value path: readiness, public sandbox helpers around health and egress, and examples/E2E coverage.
 
 ## Task Plan
 
@@ -723,10 +726,12 @@ git commit -m "feat(go-sdk): add filesystem adapter"
 
 ### Task 11: Implement SSE parser and command streaming primitives
 
+**Status:** Completed
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/internal/sse/parser.go`
 - Create: `sdks/sandbox/go/sandbox/internal/sse/event_stream.go`
-- Test: `sdks/sandbox/go/tests/unit/sse_parser_test.go`
+- Test: `sdks/sandbox/go/sandbox/internal/sse/parser_test.go`
 
 - [ ] **Step 1: Write failing SSE parser tests**
 
@@ -775,7 +780,7 @@ git commit -m "feat(go-sdk): add sse parser"
 
 **Status:** In progress
 
-**Execution Note:** Non-streaming command capabilities are partially landed: interrupt, status lookup, and background log retrieval are implemented and wired into the default execd stack. `Run` and `RunStream` remain blocked on the dedicated SSE parser task.
+**Execution Note:** Core command execution is now landed: `Run`, `RunStream`, interrupt, status lookup, and background log retrieval are implemented and wired into the default execd stack. Remaining work in this area is mostly polish and follow-up coverage rather than core capability gaps.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/adapters/commands_adapter.go`
@@ -826,10 +831,16 @@ git commit -m "feat(go-sdk): add command execution and streaming"
 
 ### Task 13: Implement egress adapter
 
+**Status:** Completed
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/internal/convert/egress.go`
 - Create: `sdks/sandbox/go/sandbox/adapters/egress_adapter.go`
 - Test: `sdks/sandbox/go/tests/unit/models_test.go`
+- Modify: `sdks/sandbox/go/sandbox/services/egress.go`
+- Modify: `sdks/sandbox/go/sandbox/factory/default_adapter_factory.go`
+- Test: `sdks/sandbox/go/sandbox/adapters/egress_adapter_test.go`
+- Test: `sdks/sandbox/go/sandbox/factory/default_adapter_factory_test.go`
 
 - [ ] **Step 1: Write failing egress tests**
 
