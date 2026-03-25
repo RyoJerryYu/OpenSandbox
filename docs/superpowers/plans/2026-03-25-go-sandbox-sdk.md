@@ -133,9 +133,9 @@
 
 ## Current Execution Status
 
-- Completed: Task 1, Task 2, Task 3, Task 4
+- Completed: Task 1, Task 2, Task 3, Task 4, Task 9, Task 10
 - Completed with initial scope: Task 6
-- In progress: Task 5, Task 7, Task 8, Task 14
+- In progress: Task 5, Task 7, Task 8, Task 12, Task 14
 
 ### Progress Notes
 
@@ -144,8 +144,11 @@
 - Landed: initial `SandboxesAdapter`, initial `SandboxManager`, and initial `Sandbox` lifecycle shell (`GetInfo`, `GetEndpoint`, `Renew`, `Pause`, `Kill`, `Close`).
 - Landed: generated clients under `sdks/sandbox/go/sandbox/internal/openapi/{lifecycle,execd,egress}` and `go.mod` runtime dependency for generated code.
 - Added during execution: generation-time lifecycle spec preprocessing that rewrites OpenAPI 3.1 `oneOf + null` patterns into a temporary 3.0.3-compatible spec for `oapi-codegen`.
-- Current blocker removed: `oapi-codegen` is installed and generation now succeeds locally, but default factory wiring still needs to be moved from fake/injected clients to real generated lifecycle transport.
-- Remaining high-value path: connect generated lifecycle client to `DefaultAdapterFactory`, then replace placeholder lifecycle wiring in `SandboxManager` / `Sandbox` create-connect-resume flows before moving to execd/egress adapters.
+- Landed: `HealthAdapter`, `MetricsAdapter`, execd metrics model conversion, and default factory wiring for generated execd transport including API key and custom header propagation.
+- Landed: filesystem domain models, conversion helpers, handwritten upload/download transport, generated execd-backed metadata/search/move/replace/permissions/directory adapters, and default factory wiring for `Sandbox.Files`.
+- Landed: initial commands domain models and `CommandsAdapter` support for `Interrupt`, `GetCommandStatus`, and `GetBackgroundCommandLogs`, plus default factory wiring for `Sandbox.Commands`.
+- Verified: `env GOCACHE=/tmp/go-build-cache go test ./...` passes under `sdks/sandbox/go`.
+- Remaining high-value path: finish SSE parser and `Run`/`RunStream` command execution, then egress, readiness, and examples/E2E coverage.
 
 ## Task Plan
 
@@ -621,11 +624,15 @@ git commit -m "feat(go-sdk): add sandbox manager"
 
 ### Task 9: Implement health and metrics adapters
 
+**Status:** Completed
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/adapters/health_adapter.go`
 - Create: `sdks/sandbox/go/sandbox/adapters/metrics_adapter.go`
 - Create: `sdks/sandbox/go/sandbox/internal/convert/execd.go`
 - Test: `sdks/sandbox/go/tests/unit/models_test.go`
+- Test: `sdks/sandbox/go/sandbox/adapters/health_metrics_test.go`
+- Test: `sdks/sandbox/go/sandbox/factory/default_adapter_factory_test.go`
 
 - [ ] **Step 1: Write failing health and metrics tests**
 
@@ -665,10 +672,17 @@ git commit -m "feat(go-sdk): add health and metrics adapters"
 
 ### Task 10: Implement filesystem conversion and adapter
 
+**Status:** Completed
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/internal/convert/filesystem.go`
 - Create: `sdks/sandbox/go/sandbox/adapters/filesystem_adapter.go`
 - Test: `sdks/sandbox/go/tests/unit/filesystem_adapter_test.go`
+- Create: `sdks/sandbox/go/sandbox/models/filesystem.go`
+- Modify: `sdks/sandbox/go/sandbox/services/filesystem.go`
+- Modify: `sdks/sandbox/go/sandbox/factory/default_adapter_factory.go`
+- Test: `sdks/sandbox/go/sandbox/adapters/filesystem_adapter_test.go`
+- Test: `sdks/sandbox/go/sandbox/factory/default_adapter_factory_test.go`
 
 - [ ] **Step 1: Write failing filesystem adapter tests**
 
@@ -759,10 +773,19 @@ git commit -m "feat(go-sdk): add sse parser"
 
 ### Task 12: Implement commands adapter and execution aggregation
 
+**Status:** In progress
+
+**Execution Note:** Non-streaming command capabilities are partially landed: interrupt, status lookup, and background log retrieval are implemented and wired into the default execd stack. `Run` and `RunStream` remain blocked on the dedicated SSE parser task.
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/adapters/commands_adapter.go`
 - Modify: `sdks/sandbox/go/sandbox/internal/convert/execd.go`
 - Test: `sdks/sandbox/go/tests/unit/commands_adapter_test.go`
+- Create: `sdks/sandbox/go/sandbox/models/execution.go`
+- Modify: `sdks/sandbox/go/sandbox/services/commands.go`
+- Modify: `sdks/sandbox/go/sandbox/factory/default_adapter_factory.go`
+- Test: `sdks/sandbox/go/sandbox/adapters/commands_adapter_test.go`
+- Test: `sdks/sandbox/go/sandbox/factory/default_adapter_factory_test.go`
 
 - [ ] **Step 1: Write failing commands adapter tests**
 
@@ -848,7 +871,7 @@ git commit -m "feat(go-sdk): add egress policy adapter"
 
 **Status:** In progress
 
-**Execution Note:** The minimal `Sandbox` type and basic lifecycle instance methods are implemented. The create/connect/resume orchestration and readiness flow are still pending.
+**Execution Note:** The minimal `Sandbox` type, lifecycle instance methods, and create/connect/resume orchestration are implemented. Default factory wiring now constructs real lifecycle and execd health/metrics transports. Readiness flow and the remaining execd/egress capabilities are still pending.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/sandbox.go`

@@ -28,11 +28,13 @@ type CreateLifecycleStackOptions struct {
 }
 
 type CreateExecdStackOptions struct {
-	ExecdBaseURL string
+	ConnectionConfig *config.ConnectionConfig
+	ExecdBaseURL     string
 }
 
 type CreateEgressStackOptions struct {
-	EgressBaseURL string
+	ConnectionConfig *config.ConnectionConfig
+	EgressBaseURL    string
 }
 
 type AdapterFactory interface {

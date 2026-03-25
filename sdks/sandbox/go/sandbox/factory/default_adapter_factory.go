@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/adapters"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
+	execdapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/execd"
 	lifecycleapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/lifecycle"
 )
 
@@ -41,9 +43,42 @@ func (f *DefaultAdapterFactory) CreateLifecycleStack(opts CreateLifecycleStackOp
 }
 
 func (f *DefaultAdapterFactory) CreateExecdStack(opts CreateExecdStackOptions) (*ExecdStack, error) {
-	return &ExecdStack{}, nil
+	if opts.ConnectionConfig == nil || opts.ExecdBaseURL == "" {
+		return nil, errors.New("missing execd client configuration")
+	}
+
+	client, err := execdapi.NewClientWithResponses(
+		opts.ExecdBaseURL,
+		execdapi.WithHTTPClient(opts.ConnectionConfig.HTTPClient),
+		execdapi.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+			return applyConnectionHeaders(req, opts.ConnectionConfig)
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ExecdStack{
+		Commands: adapters.NewCommandsAdapter(client),
+		Files:    adapters.NewFilesystemAdapter(client, opts.ExecdBaseURL, opts.ConnectionConfig),
+		Health:   adapters.NewHealthAdapter(client),
+		Metrics:  adapters.NewMetricsAdapter(client),
+	}, nil
 }
 
 func (f *DefaultAdapterFactory) CreateEgressStack(opts CreateEgressStackOptions) (*EgressStack, error) {
 	return &EgressStack{}, nil
+}
+
+func applyConnectionHeaders(req *http.Request, connectionConfig *config.ConnectionConfig) error {
+	if connectionConfig == nil {
+		return nil
+	}
+	if connectionConfig.APIKey != "" {
+		req.Header.Set("OPEN-SANDBOX-API-KEY", connectionConfig.APIKey)
+	}
+	for k, v := range connectionConfig.Headers {
+		req.Header.Set(k, v)
+	}
+	return nil
 }

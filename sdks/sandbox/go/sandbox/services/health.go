@@ -1,3 +1,7 @@
 package services
 
-type ExecdHealth interface{}
+import "context"
+
+type ExecdHealth interface {
+	Ping(ctx context.Context) (bool, error)
+}

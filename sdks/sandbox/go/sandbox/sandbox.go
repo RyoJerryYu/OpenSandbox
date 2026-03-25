@@ -127,13 +127,15 @@ func connectConstructedSandbox(ctx context.Context, adapterFactory factory.Adapt
 	}
 
 	execdStack, err := adapterFactory.CreateExecdStack(factory.CreateExecdStackOptions{
-		ExecdBaseURL: endpointToBaseURL(connectionConfig, execdEndpoint),
+		ConnectionConfig: connectionConfig,
+		ExecdBaseURL:     endpointToBaseURL(connectionConfig, execdEndpoint),
 	})
 	if err != nil {
 		return nil, err
 	}
 	_, err = adapterFactory.CreateEgressStack(factory.CreateEgressStackOptions{
-		EgressBaseURL: endpointToBaseURL(connectionConfig, egressEndpoint),
+		ConnectionConfig: connectionConfig,
+		EgressBaseURL:    endpointToBaseURL(connectionConfig, egressEndpoint),
 	})
 	if err != nil {
 		return nil, err
