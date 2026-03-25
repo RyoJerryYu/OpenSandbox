@@ -1,0 +1,110 @@
+package unit
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/factory"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/models"
+	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/services"
+)
+
+func TestManagerRenewUsesNowPlusTimeout(t *testing.T) {
+	fake := &fakeSandboxes{}
+	manager, err := sandbox.NewSandboxManager(sandbox.SandboxManagerOptions{
+		AdapterFactory: &fakeFactory{lifecycle: &factory.LifecycleStack{Sandboxes: fake}},
+	})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	before := time.Now()
+	if err := manager.RenewSandbox(context.Background(), "sbx-1", 2*time.Minute); err != nil {
+		t.Fatalf("renew sandbox: %v", err)
+	}
+
+	if fake.renewSandboxID != "sbx-1" {
+		t.Fatalf("unexpected sandbox id: %s", fake.renewSandboxID)
+	}
+
+	minExpected := before.Add(2*time.Minute - 2*time.Second)
+	maxExpected := before.Add(2*time.Minute + 2*time.Second)
+	if fake.renewExpiresAt.Before(minExpected) || fake.renewExpiresAt.After(maxExpected) {
+		t.Fatalf("unexpected renew time: %s", fake.renewExpiresAt)
+	}
+}
+
+func TestManagerCloseReleasesLocalResourcesOnly(t *testing.T) {
+	manager, err := sandbox.NewSandboxManager(sandbox.SandboxManagerOptions{
+		AdapterFactory: &fakeFactory{lifecycle: &factory.LifecycleStack{Sandboxes: &fakeSandboxes{}}},
+		CloseFunc: func() error {
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	if err := manager.Close(); err != nil {
+		t.Fatalf("close manager: %v", err)
+	}
+}
+
+type fakeFactory struct {
+	lifecycle *factory.LifecycleStack
+}
+
+func (f *fakeFactory) CreateLifecycleStack(opts factory.CreateLifecycleStackOptions) (*factory.LifecycleStack, error) {
+	return f.lifecycle, nil
+}
+
+func (f *fakeFactory) CreateExecdStack(opts factory.CreateExecdStackOptions) (*factory.ExecdStack, error) {
+	return &factory.ExecdStack{}, nil
+}
+
+func (f *fakeFactory) CreateEgressStack(opts factory.CreateEgressStackOptions) (*factory.EgressStack, error) {
+	return &factory.EgressStack{}, nil
+}
+
+type fakeSandboxes struct {
+	renewSandboxID string
+	renewExpiresAt time.Time
+}
+
+func (f *fakeSandboxes) CreateSandbox(context.Context, models.CreateSandboxRequest) (*models.CreateSandboxResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeSandboxes) GetSandbox(context.Context, string) (*models.SandboxInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeSandboxes) ListSandboxes(context.Context, models.SandboxFilter) (*models.ListSandboxesResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeSandboxes) DeleteSandbox(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeSandboxes) PauseSandbox(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeSandboxes) ResumeSandbox(context.Context, string) error {
+	return nil
+}
+
+func (f *fakeSandboxes) RenewSandboxExpiration(ctx context.Context, sandboxID string, expiresAt time.Time) (*models.RenewSandboxExpirationResponse, error) {
+	f.renewSandboxID = sandboxID
+	f.renewExpiresAt = expiresAt
+	return &models.RenewSandboxExpirationResponse{ExpiresAt: &expiresAt}, nil
+}
+
+func (f *fakeSandboxes) GetSandboxEndpoint(context.Context, string, int, bool) (*models.SandboxEndpoint, error) {
+	return nil, nil
+}
+
+var _ services.Sandboxes = (*fakeSandboxes)(nil)
