@@ -27,9 +27,13 @@ type CreateLifecycleStackOptions struct {
 	LifecycleClient  adapters.LifecycleClient
 }
 
-type CreateExecdStackOptions struct{}
+type CreateExecdStackOptions struct {
+	ExecdBaseURL string
+}
 
-type CreateEgressStackOptions struct{}
+type CreateEgressStackOptions struct {
+	EgressBaseURL string
+}
 
 type AdapterFactory interface {
 	CreateLifecycleStack(opts CreateLifecycleStackOptions) (*LifecycleStack, error)
