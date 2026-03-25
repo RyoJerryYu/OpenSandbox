@@ -136,7 +136,7 @@
 - Completed: Task 1, Task 2, Task 3, Task 4, Task 9, Task 10
 - Completed with initial scope: Task 6
 - Completed: Task 11, Task 13
-- In progress: Task 5, Task 7, Task 8, Task 12, Task 14
+- In progress: Task 5, Task 7, Task 8, Task 12, Task 14, Task 15
 
 ### Progress Notes
 
@@ -150,8 +150,9 @@
 - Landed: SSE stream primitives under `sandbox/internal/sse`, including non-2xx error normalization and context-aware stream shutdown.
 - Landed: commands domain models and `CommandsAdapter` support for `Run`, `RunStream`, `Interrupt`, `GetCommandStatus`, and `GetBackgroundCommandLogs`, plus default factory wiring for `Sandbox.Commands`.
 - Landed: egress policy conversion and adapter support for `GetPolicy` and `PatchRules`, plus default factory wiring for the sidecar egress client.
+- Landed: high-level `Sandbox` helpers for `IsHealthy`, `GetEndpointURL`, `GetEgressPolicy`, `PatchEgressRules`, and explicit `WaitUntilReady` polling.
 - Verified: `env GOCACHE=/tmp/go-build-cache go test ./...` passes under `sdks/sandbox/go`.
-- Remaining high-value path: readiness, public sandbox helpers around health and egress, and examples/E2E coverage.
+- Remaining high-value path: wire readiness into default create/connect flows, then examples/E2E coverage and public docs.
 
 ## Task Plan
 
@@ -882,7 +883,7 @@ git commit -m "feat(go-sdk): add egress policy adapter"
 
 **Status:** In progress
 
-**Execution Note:** The minimal `Sandbox` type, lifecycle instance methods, and create/connect/resume orchestration are implemented. Default factory wiring now constructs real lifecycle and execd health/metrics transports. Readiness flow and the remaining execd/egress capabilities are still pending.
+**Execution Note:** The minimal `Sandbox` type, lifecycle instance methods, create/connect/resume orchestration, and high-level health/egress convenience methods are implemented. Default factory wiring now constructs real lifecycle, execd, and egress transports. Automatic readiness in create/connect remains pending.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/sandbox.go`
@@ -935,6 +936,10 @@ git commit -m "feat(go-sdk): add sandbox orchestration"
 ```
 
 ### Task 15: Implement readiness polling, default health check, and endpoint URL helpers
+
+**Status:** In progress
+
+**Execution Note:** `WaitUntilReady`, `IsHealthy`, and `GetEndpointURL` are implemented and covered by sandbox package tests. The remaining work is integrating readiness checks into the default create/connect/resume experience and broadening coverage.
 
 **Files:**
 - Modify: `sdks/sandbox/go/sandbox/readiness.go`

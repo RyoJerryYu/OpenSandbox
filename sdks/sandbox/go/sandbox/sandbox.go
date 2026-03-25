@@ -23,6 +23,7 @@ type Sandbox struct {
 	Files    services.SandboxFiles
 	Health   services.ExecdHealth
 	Metrics  services.ExecdMetrics
+	egress   services.Egress
 
 	connectionConfig *config.ConnectionConfig
 	sandboxes        services.Sandboxes
@@ -133,7 +134,7 @@ func connectConstructedSandbox(ctx context.Context, adapterFactory factory.Adapt
 	if err != nil {
 		return nil, err
 	}
-	_, err = adapterFactory.CreateEgressStack(factory.CreateEgressStackOptions{
+	egressStack, err := adapterFactory.CreateEgressStack(factory.CreateEgressStackOptions{
 		ConnectionConfig: connectionConfig,
 		EgressBaseURL:    endpointToBaseURL(connectionConfig, egressEndpoint),
 	})
@@ -147,6 +148,7 @@ func connectConstructedSandbox(ctx context.Context, adapterFactory factory.Adapt
 		Files:            execdStack.Files,
 		Health:           execdStack.Health,
 		Metrics:          execdStack.Metrics,
+		egress:           egressStack.Egress,
 		connectionConfig: connectionConfig,
 		sandboxes:        sandboxes,
 		closeFn:          connectionConfig.Close,
@@ -166,6 +168,39 @@ func (s *Sandbox) GetInfo(ctx context.Context) (*models.SandboxInfo, error) {
 
 func (s *Sandbox) GetEndpoint(ctx context.Context, port int) (*models.SandboxEndpoint, error) {
 	return s.sandboxes.GetSandboxEndpoint(ctx, s.ID, port, s.connectionConfig.UseServerProxy)
+}
+
+func (s *Sandbox) GetEndpointURL(ctx context.Context, port int) (string, error) {
+	endpoint, err := s.GetEndpoint(ctx, port)
+	if err != nil {
+		return "", err
+	}
+	return endpointToBaseURL(s.connectionConfig, endpoint), nil
+}
+
+func (s *Sandbox) IsHealthy(ctx context.Context) bool {
+	if s == nil || s.Health == nil {
+		return false
+	}
+	ok, err := s.Health.Ping(ctx)
+	if err != nil {
+		return false
+	}
+	return ok
+}
+
+func (s *Sandbox) GetEgressPolicy(ctx context.Context) (*models.NetworkPolicy, error) {
+	if s == nil || s.egress == nil {
+		return nil, nil
+	}
+	return s.egress.GetPolicy(ctx)
+}
+
+func (s *Sandbox) PatchEgressRules(ctx context.Context, rules []models.NetworkRule) error {
+	if s == nil || s.egress == nil {
+		return nil
+	}
+	return s.egress.PatchRules(ctx, rules)
 }
 
 func (s *Sandbox) Renew(ctx context.Context, timeout time.Duration) (*models.RenewSandboxExpirationResponse, error) {

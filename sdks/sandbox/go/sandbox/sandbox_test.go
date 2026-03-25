@@ -70,6 +70,65 @@ func TestSandboxCloseCallsCloseFunc(t *testing.T) {
 	}
 }
 
+func TestSandboxIsHealthyReturnsFalseOnPingError(t *testing.T) {
+	sbx := &Sandbox{
+		Health: &sandboxHealthFake{err: errors.New("unreachable")},
+	}
+
+	ok := sbx.IsHealthy(context.Background())
+	if ok {
+		t.Fatal("expected unhealthy sandbox")
+	}
+}
+
+func TestSandboxGetEndpointURLIncludesScheme(t *testing.T) {
+	sbx := &Sandbox{
+		ID: "sbx-1",
+		connectionConfig: &config.ConnectionConfig{
+			Protocol: "https",
+		},
+		sandboxes: &sandboxLifecycleFake{
+			endpointResponse: &models.SandboxEndpoint{Endpoint: "example.test:44772"},
+		},
+	}
+
+	url, err := sbx.GetEndpointURL(context.Background(), 44772)
+	if err != nil {
+		t.Fatalf("get endpoint url: %v", err)
+	}
+	if url != "https://example.test:44772" {
+		t.Fatalf("unexpected endpoint url: %s", url)
+	}
+}
+
+func TestSandboxEgressHelpersDelegateToService(t *testing.T) {
+	egress := &sandboxEgressFake{
+		policy: &models.NetworkPolicy{
+			DefaultAction: models.NetworkRuleActionDeny,
+			Egress: []models.NetworkRule{
+				{Action: models.NetworkRuleActionAllow, Target: "pypi.org"},
+			},
+		},
+	}
+	sbx := &Sandbox{egress: egress}
+
+	policy, err := sbx.GetEgressPolicy(context.Background())
+	if err != nil {
+		t.Fatalf("get egress policy: %v", err)
+	}
+	if policy.DefaultAction != models.NetworkRuleActionDeny {
+		t.Fatalf("unexpected policy default action: %s", policy.DefaultAction)
+	}
+
+	rules := []models.NetworkRule{{Action: models.NetworkRuleActionAllow, Target: "github.com"}}
+	if err := sbx.PatchEgressRules(context.Background(), rules); err != nil {
+		t.Fatalf("patch egress rules: %v", err)
+	}
+	if len(egress.patchCalls) != 1 || len(egress.patchCalls[0]) != 1 || egress.patchCalls[0][0].Target != "github.com" {
+		t.Fatalf("unexpected patch calls: %+v", egress.patchCalls)
+	}
+}
+
 func TestCreateResolvesExecdAndEgressEndpoints(t *testing.T) {
 	lifecycle := &sandboxLifecycleFake{
 		createResponse: &models.CreateSandboxResponse{ID: "sbx-1"},
@@ -168,13 +227,15 @@ func TestResumeReturnsFreshSandboxInstance(t *testing.T) {
 }
 
 type sandboxLifecycleFake struct {
-	createResponse      *models.CreateSandboxResponse
-	endpointResponse    *models.SandboxEndpoint
+	createResponse         *models.CreateSandboxResponse
+	endpointResponse       *models.SandboxEndpoint
 	endpointResponseByPort map[int]*models.SandboxEndpoint
-	renewExpiresAt     time.Time
-	useServerProxy     bool
-	deletedSandboxID   string
-	resumedSandboxID   string
+	getSandboxResponses    []*models.SandboxInfo
+	getSandboxCallCount    int
+	renewExpiresAt         time.Time
+	useServerProxy         bool
+	deletedSandboxID       string
+	resumedSandboxID       string
 }
 
 func (f *sandboxLifecycleFake) CreateSandbox(context.Context, models.CreateSandboxRequest) (*models.CreateSandboxResponse, error) {
@@ -182,7 +243,15 @@ func (f *sandboxLifecycleFake) CreateSandbox(context.Context, models.CreateSandb
 }
 
 func (f *sandboxLifecycleFake) GetSandbox(context.Context, string) (*models.SandboxInfo, error) {
-	return nil, nil
+	f.getSandboxCallCount++
+	if len(f.getSandboxResponses) == 0 {
+		return nil, nil
+	}
+	resp := f.getSandboxResponses[0]
+	if len(f.getSandboxResponses) > 1 {
+		f.getSandboxResponses = f.getSandboxResponses[1:]
+	}
+	return resp, nil
 }
 
 func (f *sandboxLifecycleFake) ListSandboxes(context.Context, models.SandboxFilter) (*models.ListSandboxesResponse, error) {
@@ -244,4 +313,47 @@ func (f *sandboxFactoryFake) CreateEgressStack(opts factory.CreateEgressStackOpt
 		return nil, f.egressErr
 	}
 	return f.egress, nil
+}
+
+type sandboxHealthFake struct {
+	results       []bool
+	err           error
+	pingCallCount int
+}
+
+func (f *sandboxHealthFake) Ping(context.Context) (bool, error) {
+	f.pingCallCount++
+	if f.err != nil {
+		return false, f.err
+	}
+	if len(f.results) == 0 {
+		return false, nil
+	}
+	result := f.results[0]
+	if len(f.results) > 1 {
+		f.results = f.results[1:]
+	}
+	return result, nil
+}
+
+type sandboxEgressFake struct {
+	policy     *models.NetworkPolicy
+	patchCalls [][]models.NetworkRule
+}
+
+func (f *sandboxEgressFake) GetPolicy(context.Context) (*models.NetworkPolicy, error) {
+	return f.policy, nil
+}
+
+func (f *sandboxEgressFake) PatchRules(ctx context.Context, rules []models.NetworkRule) error {
+	copied := append([]models.NetworkRule(nil), rules...)
+	f.patchCalls = append(f.patchCalls, copied)
+	return nil
+}
+
+func configWithDefaults() *config.ConnectionConfig {
+	return &config.ConnectionConfig{
+		Protocol: config.DefaultProtocol,
+		Domain:   config.DefaultDomain,
+	}
 }
