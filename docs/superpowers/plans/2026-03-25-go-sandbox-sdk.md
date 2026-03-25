@@ -131,9 +131,27 @@
 5. Add examples, unit tests, integration tests, and E2E parity coverage.
 6. Polish documentation and package ergonomics for external users.
 
+## Current Execution Status
+
+- Completed: Task 1, Task 2, Task 3, Task 4
+- Completed with initial scope: Task 6
+- In progress: Task 5, Task 7, Task 8, Task 14
+
+### Progress Notes
+
+- Landed: Go module bootstrap, generator entrypoint, `Makefile`, tools pinning, and initial unit tests under `sdks/sandbox/go/`.
+- Landed: public `ConnectionConfig`, stable lifecycle models, top-level exports, service interfaces, adapter factory contracts, transport helpers, and public error types.
+- Landed: initial `SandboxesAdapter`, initial `SandboxManager`, and initial `Sandbox` lifecycle shell (`GetInfo`, `GetEndpoint`, `Renew`, `Pause`, `Kill`, `Close`).
+- Landed: generated clients under `sdks/sandbox/go/sandbox/internal/openapi/{lifecycle,execd,egress}` and `go.mod` runtime dependency for generated code.
+- Added during execution: generation-time lifecycle spec preprocessing that rewrites OpenAPI 3.1 `oneOf + null` patterns into a temporary 3.0.3-compatible spec for `oapi-codegen`.
+- Current blocker removed: `oapi-codegen` is installed and generation now succeeds locally, but default factory wiring still needs to be moved from fake/injected clients to real generated lifecycle transport.
+- Remaining high-value path: connect generated lifecycle client to `DefaultAdapterFactory`, then replace placeholder lifecycle wiring in `SandboxManager` / `Sandbox` create-connect-resume flows before moving to execd/egress adapters.
+
 ## Task Plan
 
 ### Task 1: Bootstrap the Go SDK module and generation pipeline
+
+**Status:** Completed
 
 **Files:**
 - Create: `sdks/sandbox/go/go.mod`
@@ -210,6 +228,8 @@ git commit -m "feat(go-sdk): bootstrap module and api generation"
 ```
 
 ### Task 2: Define public models, defaults, and connection configuration
+
+**Status:** Completed for the initial lifecycle/config surface. Additional model files for execd/filesystem/egress are still pending.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/doc.go`
@@ -295,6 +315,8 @@ git commit -m "feat(go-sdk): add public config and model surface"
 
 ### Task 3: Define service interfaces and adapter factory boundaries
 
+**Status:** Completed for the initial lifecycle-oriented interfaces and stack boundaries.
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/services/sandboxes.go`
 - Create: `sdks/sandbox/go/sandbox/services/commands.go`
@@ -349,6 +371,8 @@ git commit -m "feat(go-sdk): define service and factory boundaries"
 
 ### Task 4: Implement internal transport helpers and HTTP client ownership rules
 
+**Status:** Completed
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/internal/transport/http_client_provider.go`
 - Create: `sdks/sandbox/go/sandbox/internal/transport/base_url.go`
@@ -398,6 +422,10 @@ git commit -m "feat(go-sdk): add transport helpers and client lifecycle"
 
 ### Task 5: Generate lifecycle, execd, and egress OpenAPI clients
 
+**Status:** In progress
+
+**Execution Note:** The original `oapi-codegen` invocation failed on OpenAPI 3.1 nullable unions in `specs/sandbox-lifecycle.yml`. The generator has been updated to preprocess the lifecycle spec into a temporary 3.0.3-compatible file for code generation. Generated clients now exist on disk and compile after adding `github.com/oapi-codegen/runtime`, but the default factory is not yet wired to use them.
+
 **Files:**
 - Modify: `sdks/sandbox/go/cmd/generate-openapi/main.go`
 - Create: `sdks/sandbox/go/sandbox/internal/openapi/lifecycle/*.go`
@@ -444,6 +472,8 @@ git commit -m "feat(go-sdk): generate openapi transport clients"
 ```
 
 ### Task 6: Implement error normalization and public error types
+
+**Status:** Completed for the initial HTTP/status/request-id normalization path
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/errors/errors.go`
@@ -494,6 +524,10 @@ git commit -m "feat(go-sdk): add public errors and adapter normalization"
 
 ### Task 7: Implement lifecycle conversion and sandboxes adapter
 
+**Status:** In progress
+
+**Execution Note:** An initial handwritten `SandboxesAdapter` and conversion layer are in place and covered by unit tests. The remaining work is to swap the adapter from the current interface-driven fake client wiring to the real generated lifecycle client.
+
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/internal/convert/sandboxes.go`
 - Create: `sdks/sandbox/go/sandbox/adapters/sandboxes_adapter.go`
@@ -538,6 +572,10 @@ git commit -m "feat(go-sdk): implement lifecycle adapter"
 ```
 
 ### Task 8: Implement `SandboxManager`
+
+**Status:** In progress
+
+**Execution Note:** `SandboxManager` exists and its renew/get/list/pause/resume/kill/close behavior is tested against the service interface. It still needs real generated lifecycle transport wiring through `DefaultAdapterFactory`.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/sandbox_manager.go`
@@ -807,6 +845,10 @@ git commit -m "feat(go-sdk): add egress policy adapter"
 ```
 
 ### Task 14: Implement `Sandbox` orchestration for create, connect, resume, close, and remote actions
+
+**Status:** In progress
+
+**Execution Note:** The minimal `Sandbox` type and basic lifecycle instance methods are implemented. The create/connect/resume orchestration and readiness flow are still pending.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/sandbox.go`
