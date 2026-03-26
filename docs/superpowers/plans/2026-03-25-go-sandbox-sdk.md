@@ -153,8 +153,9 @@
 - Landed: default `Create`, `Connect`, and `Resume` flows now wait for readiness unless explicitly skipped, with configurable timeout, poll interval, and custom health check hooks.
 - Verified: `env GOCACHE=/tmp/go-build-cache go test ./...` passes under `sdks/sandbox/go`.
 - Verified on 2026-03-26 against a real local `opensandbox-server` at `http://127.0.0.1:8080`: Go SDK `Create -> WaitUntilReady -> Commands.Run -> Kill/Close` succeeds when `UseServerProxy=false`.
-- Diagnosed on 2026-03-26: the same smoke flow times out when `UseServerProxy=true`, but direct `curl` to the server-proxied execd health endpoint also returns `502 Bad Gateway` with `Could not connect to the backend sandbox endpoint='172.17.0.2:44772'`. This points to a local server/runtime networking mismatch in proxy mode rather than a Go-only SDK contract bug. Existing Python/JS/C#/Kotlin SDKs use the same default ping-based readiness pattern and would be expected to fail similarly under the same deployment conditions.
-- Known ergonomic gap: the Go top-level package still does not re-export `ImageSpec`, so smoke examples currently need to import `sandbox/models` directly.
+- Cross-language verification on 2026-03-26: Python SDK and JavaScript SDK reproduce the same behavior on the same local server. In both SDKs, `use_server_proxy=true` times out during readiness, while `use_server_proxy=false` succeeds for `Create -> health -> command run`. This confirms the observed failure mode is not Go-specific.
+- Diagnosed on 2026-03-26: the `UseServerProxy=true` smoke flow times out because direct `curl` to the server-proxied execd health endpoint returns `502 Bad Gateway` with `Could not connect to the backend sandbox endpoint='172.17.0.x:44772'`. This points to a local server/runtime networking mismatch in proxy mode rather than an SDK contract bug.
+- Landed: top-level Go package now re-exports common lifecycle models such as `ImageSpec`, `ImageAuth`, `NetworkPolicy`, `NetworkRule`, `Volume`, and `NetworkRuleAction{Allow,Deny}`, with a compile-level regression test for the public surface.
 - Remaining high-value path: examples/E2E coverage, public docs, and cleanup of outdated plan status notes.
 
 ## Task Plan

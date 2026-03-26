@@ -8,9 +8,25 @@ import (
 
 type ConnectionConfig = config.ConnectionConfig
 
+type ImageAuth = models.ImageAuth
+type ImageSpec = models.ImageSpec
+type NetworkRuleAction = models.NetworkRuleAction
+
+const (
+	NetworkRuleActionAllow = models.NetworkRuleActionAllow
+	NetworkRuleActionDeny  = models.NetworkRuleActionDeny
+)
+
+type NetworkRule = models.NetworkRule
+type NetworkPolicy = models.NetworkPolicy
+type Host = models.Host
+type PVC = models.PVC
+type Volume = models.Volume
+type SandboxStatus = models.SandboxStatus
 type SandboxFilter = models.SandboxFilter
 type SandboxInfo = models.SandboxInfo
 type SandboxEndpoint = models.SandboxEndpoint
+type PaginationInfo = models.PaginationInfo
 type ListSandboxesResponse = models.ListSandboxesResponse
 type RenewSandboxExpirationResponse = models.RenewSandboxExpirationResponse
 type CreateSandboxRequest = models.CreateSandboxRequest
