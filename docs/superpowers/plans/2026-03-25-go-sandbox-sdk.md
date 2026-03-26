@@ -133,10 +133,9 @@
 
 ## Current Execution Status
 
-- Completed: Task 1, Task 2, Task 3, Task 4, Task 9, Task 10
+- Completed: Task 1, Task 2, Task 3, Task 4, Task 7, Task 8, Task 9, Task 10, Task 11, Task 13, Task 14, Task 15
 - Completed with initial scope: Task 6
-- Completed: Task 11, Task 13
-- In progress: Task 5, Task 7, Task 8, Task 12, Task 14, Task 15
+- In progress: Task 5, Task 12, Task 16, Task 17
 
 ### Progress Notes
 
@@ -151,8 +150,12 @@
 - Landed: commands domain models and `CommandsAdapter` support for `Run`, `RunStream`, `Interrupt`, `GetCommandStatus`, and `GetBackgroundCommandLogs`, plus default factory wiring for `Sandbox.Commands`.
 - Landed: egress policy conversion and adapter support for `GetPolicy` and `PatchRules`, plus default factory wiring for the sidecar egress client.
 - Landed: high-level `Sandbox` helpers for `IsHealthy`, `GetEndpointURL`, `GetEgressPolicy`, `PatchEgressRules`, and explicit `WaitUntilReady` polling.
+- Landed: default `Create`, `Connect`, and `Resume` flows now wait for readiness unless explicitly skipped, with configurable timeout, poll interval, and custom health check hooks.
 - Verified: `env GOCACHE=/tmp/go-build-cache go test ./...` passes under `sdks/sandbox/go`.
-- Remaining high-value path: wire readiness into default create/connect flows, then examples/E2E coverage and public docs.
+- Verified on 2026-03-26 against a real local `opensandbox-server` at `http://127.0.0.1:8080`: Go SDK `Create -> WaitUntilReady -> Commands.Run -> Kill/Close` succeeds when `UseServerProxy=false`.
+- Diagnosed on 2026-03-26: the same smoke flow times out when `UseServerProxy=true`, but direct `curl` to the server-proxied execd health endpoint also returns `502 Bad Gateway` with `Could not connect to the backend sandbox endpoint='172.17.0.2:44772'`. This points to a local server/runtime networking mismatch in proxy mode rather than a Go-only SDK contract bug. Existing Python/JS/C#/Kotlin SDKs use the same default ping-based readiness pattern and would be expected to fail similarly under the same deployment conditions.
+- Known ergonomic gap: the Go top-level package still does not re-export `ImageSpec`, so smoke examples currently need to import `sandbox/models` directly.
+- Remaining high-value path: examples/E2E coverage, public docs, and cleanup of outdated plan status notes.
 
 ## Task Plan
 
@@ -236,7 +239,7 @@ git commit -m "feat(go-sdk): bootstrap module and api generation"
 
 ### Task 2: Define public models, defaults, and connection configuration
 
-**Status:** Completed for the initial lifecycle/config surface. Additional model files for execd/filesystem/egress are still pending.
+**Status:** Completed for the current public lifecycle/config surface. `execution.go` and `filesystem.go` now exist. `egress` domain types are currently still housed in `models/sandboxes.go`, so `models/egress.go` remains an optional cleanup split rather than a functional blocker.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/doc.go`
@@ -531,9 +534,9 @@ git commit -m "feat(go-sdk): add public errors and adapter normalization"
 
 ### Task 7: Implement lifecycle conversion and sandboxes adapter
 
-**Status:** In progress
+**Status:** Completed
 
-**Execution Note:** An initial handwritten `SandboxesAdapter` and conversion layer are in place and covered by unit tests. The remaining work is to swap the adapter from the current interface-driven fake client wiring to the real generated lifecycle client.
+**Execution Note:** `SandboxesAdapter` and conversion helpers are now wired to the generated lifecycle client, with unit coverage around conversion and endpoint resolution behavior.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/internal/convert/sandboxes.go`
@@ -580,9 +583,9 @@ git commit -m "feat(go-sdk): implement lifecycle adapter"
 
 ### Task 8: Implement `SandboxManager`
 
-**Status:** In progress
+**Status:** Completed
 
-**Execution Note:** `SandboxManager` exists and its renew/get/list/pause/resume/kill/close behavior is tested against the service interface. It still needs real generated lifecycle transport wiring through `DefaultAdapterFactory`.
+**Execution Note:** `SandboxManager` now uses the default generated lifecycle transport wiring through `DefaultAdapterFactory`, and its renew/get/list/pause/resume/kill/close behavior is covered by tests.
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/sandbox_manager.go`
@@ -881,9 +884,9 @@ git commit -m "feat(go-sdk): add egress policy adapter"
 
 ### Task 14: Implement `Sandbox` orchestration for create, connect, resume, close, and remote actions
 
-**Status:** In progress
+**Status:** Completed
 
-**Execution Note:** The minimal `Sandbox` type, lifecycle instance methods, create/connect/resume orchestration, and high-level health/egress convenience methods are implemented. Default factory wiring now constructs real lifecycle, execd, and egress transports. Automatic readiness in create/connect remains pending.
+**Execution Note:** The `Sandbox` type, lifecycle instance methods, create/connect/resume orchestration, and high-level health/egress convenience methods are implemented. Default factory wiring now constructs real lifecycle, execd, and egress transports. Real-chain verification against a local server confirmed `Create -> Commands.Run -> Kill/Close` works in direct endpoint mode (`UseServerProxy=false`).
 
 **Files:**
 - Create: `sdks/sandbox/go/sandbox/sandbox.go`
@@ -937,9 +940,9 @@ git commit -m "feat(go-sdk): add sandbox orchestration"
 
 ### Task 15: Implement readiness polling, default health check, and endpoint URL helpers
 
-**Status:** In progress
+**Status:** Completed
 
-**Execution Note:** `WaitUntilReady`, `IsHealthy`, and `GetEndpointURL` are implemented and covered by sandbox package tests. The remaining work is integrating readiness checks into the default create/connect/resume experience and broadening coverage.
+**Execution Note:** `WaitUntilReady`, `IsHealthy`, and `GetEndpointURL` are implemented and covered by sandbox package tests. Default create/connect/resume flows now invoke readiness unless skipped. Real-chain diagnostics on 2026-03-26 showed readiness succeeds in direct endpoint mode and fails in local server proxy mode because the server itself cannot reach the backend execd endpoint; this is a deployment/runtime proxy-path issue rather than a readiness logic mismatch unique to the Go SDK.
 
 **Files:**
 - Modify: `sdks/sandbox/go/sandbox/readiness.go`

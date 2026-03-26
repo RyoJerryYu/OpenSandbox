@@ -136,10 +136,13 @@ func TestCreateResolvesExecdAndEgressEndpoints(t *testing.T) {
 			defaultExecdPort:  {Endpoint: "execd.test:44772"},
 			defaultEgressPort: {Endpoint: "egress.test:18080"},
 		},
+		getSandboxResponses: []*models.SandboxInfo{
+			{Status: models.SandboxStatus{State: "Running"}},
+		},
 	}
 	factorySpy := &sandboxFactoryFake{
 		lifecycle: &factory.LifecycleStack{Sandboxes: lifecycle},
-		execd:     &factory.ExecdStack{},
+		execd:     &factory.ExecdStack{Health: &sandboxHealthFake{results: []bool{true}}},
 		egress:    &factory.EgressStack{},
 	}
 
@@ -162,6 +165,9 @@ func TestCreateResolvesExecdAndEgressEndpoints(t *testing.T) {
 	}
 	if factorySpy.egressBaseURL != "http://egress.test:18080" {
 		t.Fatalf("unexpected egress base url: %s", factorySpy.egressBaseURL)
+	}
+	if lifecycle.getSandboxCallCount == 0 {
+		t.Fatal("expected create to wait for readiness by default")
 	}
 }
 
@@ -199,10 +205,13 @@ func TestResumeReturnsFreshSandboxInstance(t *testing.T) {
 			defaultExecdPort:  {Endpoint: "execd.test:44772"},
 			defaultEgressPort: {Endpoint: "egress.test:18080"},
 		},
+		getSandboxResponses: []*models.SandboxInfo{
+			{Status: models.SandboxStatus{State: "Running"}},
+		},
 	}
 	factorySpy := &sandboxFactoryFake{
 		lifecycle: &factory.LifecycleStack{Sandboxes: lifecycle},
-		execd:     &factory.ExecdStack{},
+		execd:     &factory.ExecdStack{Health: &sandboxHealthFake{results: []bool{true}}},
 		egress:    &factory.EgressStack{},
 	}
 
@@ -223,6 +232,67 @@ func TestResumeReturnsFreshSandboxInstance(t *testing.T) {
 	}
 	if lifecycle.resumedSandboxID != "sbx-3" {
 		t.Fatalf("expected resume call for sbx-3, got %s", lifecycle.resumedSandboxID)
+	}
+}
+
+func TestConnectWaitsUntilReadyByDefault(t *testing.T) {
+	lifecycle := &sandboxLifecycleFake{
+		endpointResponseByPort: map[int]*models.SandboxEndpoint{
+			defaultExecdPort:  {Endpoint: "execd.test:44772"},
+			defaultEgressPort: {Endpoint: "egress.test:18080"},
+		},
+		getSandboxResponses: []*models.SandboxInfo{
+			{Status: models.SandboxStatus{State: "Running"}},
+		},
+	}
+	factorySpy := &sandboxFactoryFake{
+		lifecycle: &factory.LifecycleStack{Sandboxes: lifecycle},
+		execd:     &factory.ExecdStack{Health: &sandboxHealthFake{results: []bool{true}}},
+		egress:    &factory.EgressStack{},
+	}
+
+	_, err := Connect(context.Background(), SandboxConnectOptions{
+		ConnectionConfig: config.DefaultConnectionConfig(),
+		AdapterFactory:   factorySpy,
+		SandboxID:        "sbx-4",
+	})
+	if err != nil {
+		t.Fatalf("connect sandbox: %v", err)
+	}
+	if lifecycle.getSandboxCallCount == 0 {
+		t.Fatal("expected connect to wait for readiness by default")
+	}
+}
+
+func TestCreateCanSkipHealthCheck(t *testing.T) {
+	lifecycle := &sandboxLifecycleFake{
+		createResponse: &models.CreateSandboxResponse{ID: "sbx-5"},
+		endpointResponseByPort: map[int]*models.SandboxEndpoint{
+			defaultExecdPort:  {Endpoint: "execd.test:44772"},
+			defaultEgressPort: {Endpoint: "egress.test:18080"},
+		},
+	}
+	health := &sandboxHealthFake{results: []bool{true}}
+	factorySpy := &sandboxFactoryFake{
+		lifecycle: &factory.LifecycleStack{Sandboxes: lifecycle},
+		execd:     &factory.ExecdStack{Health: health},
+		egress:    &factory.EgressStack{},
+	}
+
+	_, err := Create(context.Background(), SandboxCreateOptions{
+		ConnectionConfig: config.DefaultConnectionConfig(),
+		AdapterFactory:   factorySpy,
+		SkipHealthCheck:  true,
+		Image:            models.ImageSpec{URI: "ubuntu"},
+	})
+	if err != nil {
+		t.Fatalf("create sandbox: %v", err)
+	}
+	if lifecycle.getSandboxCallCount != 0 {
+		t.Fatalf("expected lifecycle readiness polling to be skipped, got %d", lifecycle.getSandboxCallCount)
+	}
+	if health.pingCallCount != 0 {
+		t.Fatalf("expected health checks to be skipped, got %d", health.pingCallCount)
 	}
 }
 

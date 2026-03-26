@@ -74,6 +74,11 @@ func Create(ctx context.Context, opts SandboxCreateOptions) (*Sandbox, error) {
 		_ = connectionConfig.Close()
 		return nil, err
 	}
+	if err := waitIfNeeded(ctx, sbx, readinessOptionsFromCreate(opts)); err != nil {
+		_ = lifecycleStack.Sandboxes.DeleteSandbox(ctx, created.ID)
+		_ = connectionConfig.Close()
+		return nil, err
+	}
 	return sbx, nil
 }
 
@@ -98,7 +103,16 @@ func Connect(ctx context.Context, opts SandboxConnectOptions) (*Sandbox, error) 
 		return nil, err
 	}
 
-	return connectConstructedSandbox(ctx, adapterFactory, connectionConfig, lifecycleStack.Sandboxes, opts.SandboxID)
+	sbx, err := connectConstructedSandbox(ctx, adapterFactory, connectionConfig, lifecycleStack.Sandboxes, opts.SandboxID)
+	if err != nil {
+		_ = connectionConfig.Close()
+		return nil, err
+	}
+	if err := waitIfNeeded(ctx, sbx, readinessOptionsFromConnect(opts)); err != nil {
+		_ = connectionConfig.Close()
+		return nil, err
+	}
+	return sbx, nil
 }
 
 func (s *Sandbox) Resume(ctx context.Context, opts ResumeOptions) (*Sandbox, error) {
@@ -114,6 +128,10 @@ func (s *Sandbox) Resume(ctx context.Context, opts ResumeOptions) (*Sandbox, err
 		ConnectionConfig: connectionConfig,
 		AdapterFactory:   opts.AdapterFactory,
 		SandboxID:        s.ID,
+		SkipHealthCheck:  opts.SkipHealthCheck,
+		ReadyTimeout:     opts.ReadyTimeout,
+		PollInterval:     opts.PollInterval,
+		HealthCheck:      opts.HealthCheck,
 	})
 }
 
@@ -220,4 +238,36 @@ func (s *Sandbox) Close() error {
 		return nil
 	}
 	return s.closeFn()
+}
+
+func waitIfNeeded(ctx context.Context, sbx *Sandbox, opts *WaitUntilReadyOptions) error {
+	if sbx == nil || opts == nil {
+		return nil
+	}
+	if opts.SkipStatePoll && opts.CustomHealthCheck == nil && sbx.Health == nil {
+		return nil
+	}
+	return sbx.WaitUntilReady(ctx, opts)
+}
+
+func readinessOptionsFromCreate(opts SandboxCreateOptions) *WaitUntilReadyOptions {
+	if opts.SkipHealthCheck {
+		return nil
+	}
+	return &WaitUntilReadyOptions{
+		Timeout:           opts.ReadyTimeout,
+		PollInterval:      opts.PollInterval,
+		CustomHealthCheck: opts.HealthCheck,
+	}
+}
+
+func readinessOptionsFromConnect(opts SandboxConnectOptions) *WaitUntilReadyOptions {
+	if opts.SkipHealthCheck {
+		return nil
+	}
+	return &WaitUntilReadyOptions{
+		Timeout:           opts.ReadyTimeout,
+		PollInterval:      opts.PollInterval,
+		CustomHealthCheck: opts.HealthCheck,
+	}
 }
