@@ -7,6 +7,7 @@ import (
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/models"
 )
 
+// Sandboxes defines lifecycle operations exposed by the OpenSandbox server.
 type Sandboxes interface {
 	CreateSandbox(ctx context.Context, req models.CreateSandboxRequest) (*models.CreateSandboxResponse, error)
 	GetSandbox(ctx context.Context, sandboxID string) (*models.SandboxInfo, error)

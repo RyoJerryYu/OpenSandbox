@@ -6,6 +6,7 @@ import (
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/models"
 )
 
+// SandboxFiles defines high-level filesystem operations against a connected sandbox.
 type SandboxFiles interface {
 	GetFileInfo(ctx context.Context, paths []string) (map[string]models.EntryInfo, error)
 	Search(ctx context.Context, entry models.SearchEntry) ([]models.EntryInfo, error)

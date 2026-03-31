@@ -7,6 +7,7 @@ import (
 	sandboxerrors "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/errors"
 )
 
+// WaitUntilReadyOptions customizes lifecycle-state and health polling.
 type WaitUntilReadyOptions struct {
 	Timeout           time.Duration
 	PollInterval      time.Duration
@@ -14,6 +15,7 @@ type WaitUntilReadyOptions struct {
 	CustomHealthCheck func(ctx context.Context, sandbox *Sandbox) (bool, error)
 }
 
+// WaitUntilReady blocks until the sandbox reports Running and passes the configured health check.
 func (s *Sandbox) WaitUntilReady(ctx context.Context, opts *WaitUntilReadyOptions) error {
 	if s == nil {
 		return nil

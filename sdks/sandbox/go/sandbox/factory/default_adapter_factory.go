@@ -12,8 +12,10 @@ import (
 	lifecycleapi "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/openapi/lifecycle"
 )
 
+// DefaultAdapterFactory builds SDK adapters backed by the generated OpenAPI clients.
 type DefaultAdapterFactory struct{}
 
+// CreateLifecycleStack builds lifecycle adapters for sandbox management APIs.
 func (f *DefaultAdapterFactory) CreateLifecycleStack(opts CreateLifecycleStackOptions) (*LifecycleStack, error) {
 	lifecycleClient := opts.LifecycleClient
 	if lifecycleClient == nil {
@@ -43,6 +45,7 @@ func (f *DefaultAdapterFactory) CreateLifecycleStack(opts CreateLifecycleStackOp
 	}, nil
 }
 
+// CreateExecdStack builds execd adapters for commands, files, health, and metrics.
 func (f *DefaultAdapterFactory) CreateExecdStack(opts CreateExecdStackOptions) (*ExecdStack, error) {
 	if opts.ConnectionConfig == nil || opts.ExecdBaseURL == "" {
 		return nil, errors.New("missing execd client configuration")
@@ -67,6 +70,7 @@ func (f *DefaultAdapterFactory) CreateExecdStack(opts CreateExecdStackOptions) (
 	}, nil
 }
 
+// CreateEgressStack builds adapters for the sandbox egress sidecar.
 func (f *DefaultAdapterFactory) CreateEgressStack(opts CreateEgressStackOptions) (*EgressStack, error) {
 	if opts.ConnectionConfig == nil || opts.EgressBaseURL == "" {
 		return nil, errors.New("missing egress client configuration")

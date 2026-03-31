@@ -7,6 +7,7 @@ import (
 	sandboxerrors "github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/errors"
 )
 
+// NormalizeHTTPError converts HTTP failures into the public sandbox error shape.
 func NormalizeHTTPError(err error, resp *http.Response) error {
 	if err == nil {
 		return nil

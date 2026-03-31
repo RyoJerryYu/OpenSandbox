@@ -6,6 +6,7 @@ import (
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/models"
 )
 
+// ExecdCommands defines command execution operations exposed by execd.
 type ExecdCommands interface {
 	Run(ctx context.Context, command string, opts *models.RunCommandOptions) (*models.CommandExecution, error)
 	RunStream(ctx context.Context, command string, opts *models.RunCommandOptions) (*models.CommandStream, error)
