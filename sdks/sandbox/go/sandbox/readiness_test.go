@@ -18,11 +18,11 @@ func TestWaitUntilReadyPollsLifecycleThenHealth(t *testing.T) {
 		},
 	}
 	health := &sandboxHealthFake{results: []bool{false, true}}
-	sbx := &Sandbox{
-		ID:               "sbx-ready",
+	sbx := &SandboxImpl{
+		id:               "sbx-ready",
 		connectionConfig: configWithDefaults(),
 		sandboxes:        lifecycle,
-		Health:           health,
+		services:         SandboxServices{Health: health},
 	}
 
 	err := sbx.WaitUntilReady(context.Background(), &WaitUntilReadyOptions{
@@ -50,17 +50,17 @@ func TestWaitUntilReadyUsesCustomHealthCheckWhenProvided(t *testing.T) {
 	}
 	health := &sandboxHealthFake{}
 	customCalls := 0
-	sbx := &Sandbox{
-		ID:               "sbx-ready",
+	sbx := &SandboxImpl{
+		id:               "sbx-ready",
 		connectionConfig: configWithDefaults(),
 		sandboxes:        lifecycle,
-		Health:           health,
+		services:         SandboxServices{Health: health},
 	}
 
 	err := sbx.WaitUntilReady(context.Background(), &WaitUntilReadyOptions{
 		Timeout:      2 * time.Second,
 		PollInterval: 5 * time.Millisecond,
-		CustomHealthCheck: func(ctx context.Context, sandbox *Sandbox) (bool, error) {
+		CustomHealthCheck: func(ctx context.Context, sandbox Sandbox) (bool, error) {
 			customCalls++
 			return true, nil
 		},
@@ -77,15 +77,15 @@ func TestWaitUntilReadyUsesCustomHealthCheckWhenProvided(t *testing.T) {
 }
 
 func TestWaitUntilReadyReturnsTimeoutError(t *testing.T) {
-	sbx := &Sandbox{
-		ID:               "sbx-ready",
+	sbx := &SandboxImpl{
+		id:               "sbx-ready",
 		connectionConfig: configWithDefaults(),
 		sandboxes: &sandboxLifecycleFake{
 			getSandboxResponses: []*models.SandboxInfo{
 				{Status: models.SandboxStatus{State: "Running"}},
 			},
 		},
-		Health: &sandboxHealthFake{results: []bool{false, false, false}},
+		services: SandboxServices{Health: &sandboxHealthFake{results: []bool{false, false, false}}},
 	}
 
 	err := sbx.WaitUntilReady(context.Background(), &WaitUntilReadyOptions{

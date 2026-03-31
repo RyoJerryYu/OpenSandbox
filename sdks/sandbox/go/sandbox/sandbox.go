@@ -16,28 +16,18 @@ const (
 	defaultEgressPort = 18080
 )
 
-// Sandbox is the main high-level handle for one running sandbox instance.
-type Sandbox struct {
-	// ID is the lifecycle identifier of the sandbox.
-	ID string
-
-	// Commands exposes execd command execution.
-	Commands services.ExecdCommands
-	// Files exposes high-level filesystem operations.
-	Files    services.SandboxFiles
-	// Health exposes low-level execd health checks.
-	Health   services.ExecdHealth
-	// Metrics exposes point-in-time resource metrics.
-	Metrics  services.ExecdMetrics
-	egress   services.Egress
-
+// SandboxImpl is the concrete implementation behind the public Sandbox interface.
+type SandboxImpl struct {
+	id               string
+	services         SandboxServices
+	egress           services.Egress
 	connectionConfig *config.ConnectionConfig
 	sandboxes        services.Sandboxes
 	closeFn          func() error
 }
 
 // Create provisions a new sandbox and, by default, waits for it to become ready.
-func Create(ctx context.Context, opts SandboxCreateOptions) (*Sandbox, error) {
+func Create(ctx context.Context, opts SandboxCreateOptions) (Sandbox, error) {
 	connectionConfig := opts.ConnectionConfig
 	if connectionConfig == nil {
 		connectionConfig = config.DefaultConnectionConfig()
@@ -90,7 +80,7 @@ func Create(ctx context.Context, opts SandboxCreateOptions) (*Sandbox, error) {
 }
 
 // Connect attaches to an existing sandbox and, by default, waits for it to become ready.
-func Connect(ctx context.Context, opts SandboxConnectOptions) (*Sandbox, error) {
+func Connect(ctx context.Context, opts SandboxConnectOptions) (Sandbox, error) {
 	connectionConfig := opts.ConnectionConfig
 	if connectionConfig == nil {
 		connectionConfig = config.DefaultConnectionConfig()
@@ -124,8 +114,8 @@ func Connect(ctx context.Context, opts SandboxConnectOptions) (*Sandbox, error) 
 }
 
 // Resume resumes the current sandbox remotely and returns a fresh connected Sandbox handle.
-func (s *Sandbox) Resume(ctx context.Context, opts ResumeOptions) (*Sandbox, error) {
-	if err := s.sandboxes.ResumeSandbox(ctx, s.ID); err != nil {
+func (s *SandboxImpl) Resume(ctx context.Context, opts ResumeOptions) (Sandbox, error) {
+	if err := s.sandboxes.ResumeSandbox(ctx, s.id); err != nil {
 		return nil, err
 	}
 
@@ -136,7 +126,7 @@ func (s *Sandbox) Resume(ctx context.Context, opts ResumeOptions) (*Sandbox, err
 	return Connect(ctx, SandboxConnectOptions{
 		ConnectionConfig: connectionConfig,
 		AdapterFactory:   opts.AdapterFactory,
-		SandboxID:        s.ID,
+		SandboxID:        s.id,
 		SkipHealthCheck:  opts.SkipHealthCheck,
 		ReadyTimeout:     opts.ReadyTimeout,
 		PollInterval:     opts.PollInterval,
@@ -144,7 +134,7 @@ func (s *Sandbox) Resume(ctx context.Context, opts ResumeOptions) (*Sandbox, err
 	})
 }
 
-func connectConstructedSandbox(ctx context.Context, adapterFactory factory.AdapterFactory, connectionConfig *config.ConnectionConfig, sandboxes services.Sandboxes, sandboxID string) (*Sandbox, error) {
+func connectConstructedSandbox(ctx context.Context, adapterFactory factory.AdapterFactory, connectionConfig *config.ConnectionConfig, sandboxes services.Sandboxes, sandboxID string) (*SandboxImpl, error) {
 	execdEndpoint, err := sandboxes.GetSandboxEndpoint(ctx, sandboxID, defaultExecdPort, connectionConfig.UseServerProxy)
 	if err != nil {
 		return nil, err
@@ -169,12 +159,14 @@ func connectConstructedSandbox(ctx context.Context, adapterFactory factory.Adapt
 		return nil, err
 	}
 
-	return &Sandbox{
-		ID:               sandboxID,
-		Commands:         execdStack.Commands,
-		Files:            execdStack.Files,
-		Health:           execdStack.Health,
-		Metrics:          execdStack.Metrics,
+	return &SandboxImpl{
+		id: sandboxID,
+		services: SandboxServices{
+			Commands: execdStack.Commands,
+			Files:    execdStack.Files,
+			Health:   execdStack.Health,
+			Metrics:  execdStack.Metrics,
+		},
 		egress:           egressStack.Egress,
 		connectionConfig: connectionConfig,
 		sandboxes:        sandboxes,
@@ -190,17 +182,32 @@ func endpointToBaseURL(connectionConfig *config.ConnectionConfig, endpoint *mode
 }
 
 // GetInfo fetches the latest lifecycle information for the sandbox.
-func (s *Sandbox) GetInfo(ctx context.Context) (*models.SandboxInfo, error) {
-	return s.sandboxes.GetSandbox(ctx, s.ID)
+func (s *SandboxImpl) ID() string {
+	if s == nil {
+		return ""
+	}
+	return s.id
+}
+
+func (s *SandboxImpl) Services() SandboxServices {
+	if s == nil {
+		return SandboxServices{}
+	}
+	return s.services
+}
+
+// GetInfo fetches the latest lifecycle information for the sandbox.
+func (s *SandboxImpl) GetInfo(ctx context.Context) (*models.SandboxInfo, error) {
+	return s.sandboxes.GetSandbox(ctx, s.id)
 }
 
 // GetEndpoint resolves the endpoint for a service listening on the given port.
-func (s *Sandbox) GetEndpoint(ctx context.Context, port int) (*models.SandboxEndpoint, error) {
-	return s.sandboxes.GetSandboxEndpoint(ctx, s.ID, port, s.connectionConfig.UseServerProxy)
+func (s *SandboxImpl) GetEndpoint(ctx context.Context, port int) (*models.SandboxEndpoint, error) {
+	return s.sandboxes.GetSandboxEndpoint(ctx, s.id, port, s.connectionConfig.UseServerProxy)
 }
 
 // GetEndpointURL resolves the endpoint for a port and prefixes it with the configured scheme.
-func (s *Sandbox) GetEndpointURL(ctx context.Context, port int) (string, error) {
+func (s *SandboxImpl) GetEndpointURL(ctx context.Context, port int) (string, error) {
 	endpoint, err := s.GetEndpoint(ctx, port)
 	if err != nil {
 		return "", err
@@ -209,11 +216,11 @@ func (s *Sandbox) GetEndpointURL(ctx context.Context, port int) (string, error) 
 }
 
 // IsHealthy reports whether the sandbox execd health check succeeds.
-func (s *Sandbox) IsHealthy(ctx context.Context) bool {
-	if s == nil || s.Health == nil {
+func (s *SandboxImpl) IsHealthy(ctx context.Context) bool {
+	if s == nil || s.services.Health == nil {
 		return false
 	}
-	ok, err := s.Health.Ping(ctx)
+	ok, err := s.services.Health.Ping(ctx)
 	if err != nil {
 		return false
 	}
@@ -221,7 +228,7 @@ func (s *Sandbox) IsHealthy(ctx context.Context) bool {
 }
 
 // GetEgressPolicy fetches the current egress policy when the egress sidecar is available.
-func (s *Sandbox) GetEgressPolicy(ctx context.Context) (*models.NetworkPolicy, error) {
+func (s *SandboxImpl) GetEgressPolicy(ctx context.Context) (*models.NetworkPolicy, error) {
 	if s == nil || s.egress == nil {
 		return nil, nil
 	}
@@ -229,7 +236,7 @@ func (s *Sandbox) GetEgressPolicy(ctx context.Context) (*models.NetworkPolicy, e
 }
 
 // PatchEgressRules patches egress rules using sidecar merge semantics.
-func (s *Sandbox) PatchEgressRules(ctx context.Context, rules []models.NetworkRule) error {
+func (s *SandboxImpl) PatchEgressRules(ctx context.Context, rules []models.NetworkRule) error {
 	if s == nil || s.egress == nil {
 		return nil
 	}
@@ -237,33 +244,33 @@ func (s *Sandbox) PatchEgressRules(ctx context.Context, rules []models.NetworkRu
 }
 
 // Renew extends the sandbox expiration relative to the current time.
-func (s *Sandbox) Renew(ctx context.Context, timeout time.Duration) (*models.RenewSandboxExpirationResponse, error) {
-	return s.sandboxes.RenewSandboxExpiration(ctx, s.ID, time.Now().UTC().Add(timeout))
+func (s *SandboxImpl) Renew(ctx context.Context, timeout time.Duration) (*models.RenewSandboxExpirationResponse, error) {
+	return s.sandboxes.RenewSandboxExpiration(ctx, s.id, time.Now().UTC().Add(timeout))
 }
 
 // Pause pauses the sandbox remotely.
-func (s *Sandbox) Pause(ctx context.Context) error {
-	return s.sandboxes.PauseSandbox(ctx, s.ID)
+func (s *SandboxImpl) Pause(ctx context.Context) error {
+	return s.sandboxes.PauseSandbox(ctx, s.id)
 }
 
 // Kill deletes the sandbox remotely.
-func (s *Sandbox) Kill(ctx context.Context) error {
-	return s.sandboxes.DeleteSandbox(ctx, s.ID)
+func (s *SandboxImpl) Kill(ctx context.Context) error {
+	return s.sandboxes.DeleteSandbox(ctx, s.id)
 }
 
 // Close releases local resources owned by this Sandbox handle.
-func (s *Sandbox) Close() error {
+func (s *SandboxImpl) Close() error {
 	if s == nil || s.closeFn == nil {
 		return nil
 	}
 	return s.closeFn()
 }
 
-func waitIfNeeded(ctx context.Context, sbx *Sandbox, opts *WaitUntilReadyOptions) error {
+func waitIfNeeded(ctx context.Context, sbx *SandboxImpl, opts *WaitUntilReadyOptions) error {
 	if sbx == nil || opts == nil {
 		return nil
 	}
-	if opts.SkipStatePoll && opts.CustomHealthCheck == nil && sbx.Health == nil {
+	if opts.SkipStatePoll && opts.CustomHealthCheck == nil && sbx.services.Health == nil {
 		return nil
 	}
 	return sbx.WaitUntilReady(ctx, opts)

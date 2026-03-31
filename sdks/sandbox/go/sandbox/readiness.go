@@ -12,11 +12,11 @@ type WaitUntilReadyOptions struct {
 	Timeout           time.Duration
 	PollInterval      time.Duration
 	SkipStatePoll     bool
-	CustomHealthCheck func(ctx context.Context, sandbox *Sandbox) (bool, error)
+	CustomHealthCheck func(ctx context.Context, sandbox Sandbox) (bool, error)
 }
 
 // WaitUntilReady blocks until the sandbox reports Running and passes the configured health check.
-func (s *Sandbox) WaitUntilReady(ctx context.Context, opts *WaitUntilReadyOptions) error {
+func (s *SandboxImpl) WaitUntilReady(ctx context.Context, opts *WaitUntilReadyOptions) error {
 	if s == nil {
 		return nil
 	}
@@ -24,7 +24,7 @@ func (s *Sandbox) WaitUntilReady(ctx context.Context, opts *WaitUntilReadyOption
 	timeout := 60 * time.Second
 	pollInterval := 500 * time.Millisecond
 	skipStatePoll := false
-	var customHealthCheck func(context.Context, *Sandbox) (bool, error)
+	var customHealthCheck func(context.Context, Sandbox) (bool, error)
 
 	if opts != nil {
 		if opts.Timeout > 0 {

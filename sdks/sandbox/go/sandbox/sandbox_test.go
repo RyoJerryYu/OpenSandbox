@@ -13,8 +13,8 @@ import (
 
 func TestSandboxRenewUsesNowPlusTimeout(t *testing.T) {
 	fake := &sandboxLifecycleFake{}
-	sbx := &Sandbox{
-		ID:               "sbx-1",
+	sbx := &SandboxImpl{
+		id:               "sbx-1",
 		connectionConfig: config.DefaultConnectionConfig(),
 		sandboxes:        fake,
 	}
@@ -35,8 +35,8 @@ func TestSandboxGetEndpointUsesConnectionProxyFlag(t *testing.T) {
 	fake := &sandboxLifecycleFake{
 		endpointResponse: &models.SandboxEndpoint{Endpoint: "domain/proxy/44772"},
 	}
-	sbx := &Sandbox{
-		ID: "sbx-1",
+	sbx := &SandboxImpl{
+		id: "sbx-1",
 		connectionConfig: &config.ConnectionConfig{
 			Domain:         config.DefaultDomain,
 			Protocol:       config.DefaultProtocol,
@@ -55,7 +55,7 @@ func TestSandboxGetEndpointUsesConnectionProxyFlag(t *testing.T) {
 
 func TestSandboxCloseCallsCloseFunc(t *testing.T) {
 	closed := false
-	sbx := &Sandbox{
+	sbx := &SandboxImpl{
 		closeFn: func() error {
 			closed = true
 			return nil
@@ -71,8 +71,8 @@ func TestSandboxCloseCallsCloseFunc(t *testing.T) {
 }
 
 func TestSandboxIsHealthyReturnsFalseOnPingError(t *testing.T) {
-	sbx := &Sandbox{
-		Health: &sandboxHealthFake{err: errors.New("unreachable")},
+	sbx := &SandboxImpl{
+		services: SandboxServices{Health: &sandboxHealthFake{err: errors.New("unreachable")}},
 	}
 
 	ok := sbx.IsHealthy(context.Background())
@@ -82,8 +82,8 @@ func TestSandboxIsHealthyReturnsFalseOnPingError(t *testing.T) {
 }
 
 func TestSandboxGetEndpointURLIncludesScheme(t *testing.T) {
-	sbx := &Sandbox{
-		ID: "sbx-1",
+	sbx := &SandboxImpl{
+		id: "sbx-1",
 		connectionConfig: &config.ConnectionConfig{
 			Protocol: "https",
 		},
@@ -110,7 +110,7 @@ func TestSandboxEgressHelpersDelegateToService(t *testing.T) {
 			},
 		},
 	}
-	sbx := &Sandbox{egress: egress}
+	sbx := &SandboxImpl{egress: egress}
 
 	policy, err := sbx.GetEgressPolicy(context.Background())
 	if err != nil {
@@ -157,8 +157,8 @@ func TestCreateResolvesExecdAndEgressEndpoints(t *testing.T) {
 		t.Fatalf("create sandbox: %v", err)
 	}
 
-	if sbx.ID != "sbx-1" {
-		t.Fatalf("unexpected sandbox id: %s", sbx.ID)
+	if sbx.ID() != "sbx-1" {
+		t.Fatalf("unexpected sandbox id: %s", sbx.ID())
 	}
 	if factorySpy.execdBaseURL != "http://execd.test:44772" {
 		t.Fatalf("unexpected execd base url: %s", factorySpy.execdBaseURL)
@@ -215,8 +215,8 @@ func TestResumeReturnsFreshSandboxInstance(t *testing.T) {
 		egress:    &factory.EgressStack{},
 	}
 
-	original := &Sandbox{
-		ID:               "sbx-3",
+	original := &SandboxImpl{
+		id:               "sbx-3",
 		connectionConfig: config.DefaultConnectionConfig(),
 		sandboxes:        lifecycle,
 	}
