@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
@@ -95,6 +96,7 @@ func TestFilesystemAdapterWriteAndReadFile(t *testing.T) {
 	if !strings.Contains(requests[0].Body, `"path":"/tmp/hello.txt"`) {
 		t.Fatalf("expected upload metadata body, got %q", requests[0].Body)
 	}
+	verifyMultipartUploadShape(t, requests[0].Type, requests[0].Body)
 	if requests[1].Path != "/files/download" || requests[1].Method != http.MethodGet {
 		t.Fatalf("unexpected download request: %+v", requests[1])
 	}
@@ -103,6 +105,49 @@ func TestFilesystemAdapterWriteAndReadFile(t *testing.T) {
 	}
 	if requests[1].APIKey != "api-key-1" || requests[1].Header != "value-1" {
 		t.Fatalf("expected propagated headers, got %+v", requests[1])
+	}
+}
+
+func verifyMultipartUploadShape(t *testing.T, contentType, body string) {
+	t.Helper()
+
+	parts := strings.Split(contentType, "boundary=")
+	if len(parts) != 2 {
+		t.Fatalf("missing multipart boundary in content type: %q", contentType)
+	}
+
+	reader := multipart.NewReader(strings.NewReader(body), strings.TrimSpace(parts[1]))
+
+	metadataPart, err := reader.NextPart()
+	if err != nil {
+		t.Fatalf("read metadata part: %v", err)
+	}
+	if got := metadataPart.FormName(); got != "metadata" {
+		t.Fatalf("unexpected metadata form name: %q", got)
+	}
+	if got := metadataPart.FileName(); got != "metadata" {
+		t.Fatalf("unexpected metadata filename: %q", got)
+	}
+	if got := metadataPart.Header.Get("Content-Type"); got != "application/json" {
+		t.Fatalf("unexpected metadata content type: %q", got)
+	}
+
+	filePart, err := reader.NextPart()
+	if err != nil {
+		t.Fatalf("read file part: %v", err)
+	}
+	if got := filePart.FormName(); got != "file" {
+		t.Fatalf("unexpected file form name: %q", got)
+	}
+	if got := filePart.FileName(); got != "hello.txt" {
+		t.Fatalf("unexpected file filename: %q", got)
+	}
+	if got := filePart.Header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("unexpected file content type: %q", got)
+	}
+
+	if _, err := reader.NextPart(); err != io.EOF {
+		t.Fatalf("expected exactly two multipart parts, got err=%v", err)
 	}
 }
 

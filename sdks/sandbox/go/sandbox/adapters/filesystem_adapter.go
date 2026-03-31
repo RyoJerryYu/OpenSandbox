@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"net/textproto"
 
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/convert"
@@ -257,7 +258,10 @@ func addUploadEntry(writer *multipart.Writer, entry models.WriteEntry) error {
 	if err != nil {
 		return err
 	}
-	metadataPart, err := writer.CreateFormField("metadata")
+	metadataHeader := textproto.MIMEHeader{}
+	metadataHeader.Set("Content-Disposition", `form-data; name="metadata"; filename="metadata"`)
+	metadataHeader.Set("Content-Type", "application/json")
+	metadataPart, err := writer.CreatePart(metadataHeader)
 	if err != nil {
 		return err
 	}
@@ -265,7 +269,10 @@ func addUploadEntry(writer *multipart.Writer, entry models.WriteEntry) error {
 		return err
 	}
 
-	filePart, err := writer.CreateFormFile("file", entry.Path)
+	fileHeader := textproto.MIMEHeader{}
+	fileHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, entry.Path))
+	fileHeader.Set("Content-Type", uploadContentType(entry))
+	filePart, err := writer.CreatePart(fileHeader)
 	if err != nil {
 		return err
 	}
@@ -282,6 +289,19 @@ func addUploadEntry(writer *multipart.Writer, entry models.WriteEntry) error {
 		return fmt.Errorf("unsupported write entry data type %T", entry.Data)
 	}
 	return err
+}
+
+func uploadContentType(entry models.WriteEntry) string {
+	switch entry.Data.(type) {
+	case string:
+		encoding := entry.Encoding
+		if encoding == "" {
+			encoding = "utf-8"
+		}
+		return "text/plain; charset=" + encoding
+	default:
+		return "application/octet-stream"
+	}
 }
 
 func applyFilesystemConnectionHeaders(req *http.Request, connectionConfig *config.ConnectionConfig) {
