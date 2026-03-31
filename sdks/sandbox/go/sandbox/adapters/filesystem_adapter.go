@@ -8,8 +8,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"net/textproto"
+	"net/url"
 
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/config"
 	"github.com/alibaba/opensandbox/sdks/sandbox/go/sandbox/internal/convert"
@@ -229,7 +229,7 @@ func (a *FilesystemAdapter) SetPermissions(ctx context.Context, entries []models
 
 func (a *FilesystemAdapter) newDirectRequest(ctx context.Context, method, path string, query url.Values, body io.Reader) (*http.Request, error) {
 	target := a.baseURL + path
-	if query != nil && len(query) > 0 {
+	if len(query) > 0 {
 		target += "?" + query.Encode()
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target, body)
