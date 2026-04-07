@@ -19,6 +19,8 @@ type SandboxCreateOptions struct {
 	Timeout *time.Duration
 	// Image selects the runtime image to boot.
 	Image models.ImageSpec
+	// Extensions carries opaque server-side extension parameters.
+	Extensions map[string]string
 	// SkipHealthCheck disables default readiness waiting after create.
 	SkipHealthCheck bool
 	// ReadyTimeout bounds readiness polling when SkipHealthCheck is false.

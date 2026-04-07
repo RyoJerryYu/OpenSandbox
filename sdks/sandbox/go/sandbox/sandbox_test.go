@@ -296,8 +296,47 @@ func TestCreateCanSkipHealthCheck(t *testing.T) {
 	}
 }
 
+func TestCreatePassesExtensionsToLifecycleRequest(t *testing.T) {
+	lifecycle := &sandboxLifecycleFake{
+		createResponse: &models.CreateSandboxResponse{ID: "sbx-6"},
+		endpointResponseByPort: map[int]*models.SandboxEndpoint{
+			defaultExecdPort:  {Endpoint: "execd.test:44772"},
+			defaultEgressPort: {Endpoint: "egress.test:18080"},
+		},
+		getSandboxResponses: []*models.SandboxInfo{
+			{Status: models.SandboxStatus{State: "Running"}},
+		},
+	}
+	factorySpy := &sandboxFactoryFake{
+		lifecycle: &factory.LifecycleStack{Sandboxes: lifecycle},
+		execd:     &factory.ExecdStack{Health: &sandboxHealthFake{results: []bool{true}}},
+		egress:    &factory.EgressStack{},
+	}
+
+	_, err := Create(context.Background(), SandboxCreateOptions{
+		ConnectionConfig: config.DefaultConnectionConfig(),
+		AdapterFactory:   factorySpy,
+		Image:            models.ImageSpec{URI: "ubuntu"},
+		Extensions: map[string]string{
+			"storage.id": "abc123",
+			"debug":      "true",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create sandbox: %v", err)
+	}
+
+	if lifecycle.createRequest.Extensions["storage.id"] != "abc123" {
+		t.Fatalf("expected extensions to be forwarded, got %+v", lifecycle.createRequest.Extensions)
+	}
+	if lifecycle.createRequest.Extensions["debug"] != "true" {
+		t.Fatalf("expected extensions to be forwarded, got %+v", lifecycle.createRequest.Extensions)
+	}
+}
+
 type sandboxLifecycleFake struct {
 	createResponse         *models.CreateSandboxResponse
+	createRequest          models.CreateSandboxRequest
 	endpointResponse       *models.SandboxEndpoint
 	endpointResponseByPort map[int]*models.SandboxEndpoint
 	getSandboxResponses    []*models.SandboxInfo
@@ -308,7 +347,8 @@ type sandboxLifecycleFake struct {
 	resumedSandboxID       string
 }
 
-func (f *sandboxLifecycleFake) CreateSandbox(context.Context, models.CreateSandboxRequest) (*models.CreateSandboxResponse, error) {
+func (f *sandboxLifecycleFake) CreateSandbox(_ context.Context, req models.CreateSandboxRequest) (*models.CreateSandboxResponse, error) {
+	f.createRequest = req
 	return f.createResponse, nil
 }
 

@@ -59,6 +59,7 @@ func Create(ctx context.Context, opts SandboxCreateOptions) (Sandbox, error) {
 		Entrypoint:     []string{"tail", "-f", "/dev/null"},
 		Timeout:        timeoutSeconds,
 		ResourceLimits: map[string]string{},
+		Extensions:     cloneStringMapLocal(opts.Extensions),
 	})
 	if err != nil {
 		_ = connectionConfig.Close()
@@ -179,6 +180,17 @@ func endpointToBaseURL(connectionConfig *config.ConnectionConfig, endpoint *mode
 		return ""
 	}
 	return fmt.Sprintf("%s://%s", connectionConfig.Protocol, endpoint.Endpoint)
+}
+
+func cloneStringMapLocal(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 // GetInfo fetches the latest lifecycle information for the sandbox.
